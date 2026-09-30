@@ -12,6 +12,7 @@
 <meta name="theme-color" content="#111827">
 
 <title>Hoornbeeck Gebouwenroute</title>
+<meta name="app-version" content="gps-live-3">
 
 <style>
 * {
@@ -253,7 +254,7 @@ button {
             </div>
 
             <div class="infoBox">
-                <div class="label">Laatste update</div>
+                <div class="label">Laatste ontvangen meting</div>
                 <div class="value" id="lastUpdate">-</div>
             </div>
 
@@ -271,9 +272,9 @@ button {
 
         <h2>🚶 Route</h2>
 
-        <label for="startRoomSelect">Vertrekpunt op deze verdieping</label>
+        <label for="startRoomSelect">Bekend vertrekpunt (optioneel)</label>
 <select id="startRoomSelect" aria-label="Vertrekpunt"></select>
-<p class="small">Deze afbeelding bevat geen geografische positie. Kies je vertrekpunt voor een vaste route; GPS kan hier geen lokaal of verdieping vaststellen.</p>
+<p class="small">De stip volgt je GPS-beweging vanaf een geschat startpunt. Een bekend vertrekpunt kiezen is optioneel. Schaal en kaartrichting zijn geschat: dit is geen exacte binnenlocatie.</p>
 <label for="roomSelect">Bestemming</label>
 <select id="roomSelect">
 
@@ -322,7 +323,7 @@ button {
         </div>
 
         <div id="mapMessage">
-            Kies een vertrekpunt en bestemming voor de route.
+            Start GPS om de stip te laten meebewegen.
         </div>
 
         <div class="legend">
@@ -332,7 +333,7 @@ button {
                     class="legendColor"
                     style="background:#ef4444;"
                 ></div>
-                Gekozen vertrekpunt
+                GPS-beweging (geschat)
             </div>
 
             <div class="legendItem">
@@ -378,6 +379,12 @@ button {
 
 const MAP_WIDTH = 755;
 const MAP_HEIGHT = 553;
+// Legacy estimates: the image is not geographically referenced.
+const ESTIMATED_PIXELS_PER_METER = 12;
+const ESTIMATED_START = { x: 400, y: 272 };
+let gpsReference = null;
+let lastReceivedAt = 0;
+let watchStartedAt = 0;
 
 let watchId = null;
 
@@ -666,7 +673,9 @@ function startGPS() {
     tracker.reset();
     rawGPSPosition = null;
     gpsPosition = null;
-    lastAcceptedTimestamp = 0;
+    gpsReference = null;
+    targetGPSMapPoint = displayedGPSMapPoint = null;
+    lastAcceptedTimestamp = lastReceivedAt = 0;
     latitude.textContent = longitude.textContent = accuracy.textContent = lastUpdate.textContent = '-';
     gpsRunning = true;
     gpsStarting = true;
@@ -685,6 +694,7 @@ function startGPS() {
 function startLiveWatch() {
     if (!gpsRunning) return;
     const generation = ++watchGeneration;
+    watchStartedAt = Date.now();
     if (watchId !== null) navigator.geolocation.clearWatch(watchId);
     watchId = null;
     try {
@@ -719,6 +729,7 @@ function stopGPS() {
     gpsStatus.textContent = 'Live GPS staat uit.';
     gpsStatus.className = 'small';
     liveStatus.textContent = 'Uit';
+    mapMessage.textContent = 'GPS gestopt. De stip toont de laatst bekende geschatte positie.';
 }
 
 
@@ -733,6 +744,8 @@ function handleGPSPosition(position) {
     const result = tracker.accept(p);
     if (LocationCore.validFix(p) && (!rawGPSPosition || p.timestamp > rawGPSPosition.timestamp)) {
         rawGPSPosition = p;
+        lastReceivedAt = Date.now();
+        lastUpdate.textContent = new Date(p.timestamp).toLocaleTimeString('nl-NL');
         accuracy.textContent = '± ' + Math.round(p.accuracy) + ' meter';
     }
     if (!result.position) {
@@ -745,14 +758,18 @@ function handleGPSPosition(position) {
     gpsUpdateCount++;
     const previous = gpsPosition;
     gpsPosition = result.position;
+    updateGPSMapPoint(gpsPosition);
     lastAcceptedTimestamp = p.timestamp;
     latitude.textContent = gpsPosition.latitude.toFixed(7);
     longitude.textContent = gpsPosition.longitude.toFixed(7);
-    lastUpdate.textContent = new Date(p.timestamp).toLocaleTimeString('nl-NL');
     movement.textContent = previous ? LocationCore.meters(previous, gpsPosition).toFixed(1) + ' m (gefilterd)' : 'Eerste bruikbare meting';
     liveStatus.textContent = 'GPS ontvangen';
-    gpsStatus.textContent = 'GPS bijgewerkt. De onzekerheid is een schatting van je telefoon; filtering maakt GPS niet preciezer.';
+    gpsStatus.textContent = 'Live GPS bijgewerkt. Stip en route bewegen mee; de plaatsing op deze afbeelding is geschat.';
     gpsStatus.className = 'small';
+    if (p.accuracy > 15) {
+        gpsStatus.textContent += ' Zwak signaal: beweging kan afwijken of verspringen.';
+        gpsStatus.className = 'small warning';
+    }
 }
 
 
@@ -779,9 +796,26 @@ function handleGPSError(error) {
    GPS -> KAART
 ===================================================== */
 
-function gpsToMap() {
-    // No geographic transform is known for this floor-plan image.
-    return null;
+function gpsToMap(position) {
+    if (!gpsReference) return null;
+    const east = (position.longitude - gpsReference.longitude) * 111320 * Math.cos(gpsReference.latitude * Math.PI / 180);
+    const north = (position.latitude - gpsReference.latitude) * 111320;
+    return { x: gpsReference.x + east * ESTIMATED_PIXELS_PER_METER,
+        y: gpsReference.y - north * ESTIMATED_PIXELS_PER_METER };
+}
+
+function updateGPSMapPoint(position) {
+    if (!gpsReference) {
+        const start = roomAccess[startRoomSelect.value]?.door || ESTIMATED_START;
+        gpsReference = { ...position, ...start };
+    }
+    targetGPSMapPoint = gpsToMap(position);
+    if (!displayedGPSMapPoint) displayedGPSMapPoint = { ...targetGPSMapPoint };
+    const p = targetGPSMapPoint;
+    mapMessage.textContent = p.x < 0 || p.y < 0 || p.x > MAP_WIDTH || p.y > MAP_HEIGHT
+        ? 'GPS-beweging valt buiten de afbeelding. Schaal, richting en startpunt zijn geschat.'
+        : 'Live GPS-beweging • geschatte plaatsing • ± ' + Math.round(position.accuracy) + ' m meetonzekerheid';
+    draw();
 }
 
 
@@ -866,15 +900,19 @@ resetGpsButton.addEventListener('click', () => {
 });
 
 const startRoomSelect = document.getElementById('startRoomSelect');
-startRoomSelect.innerHTML = roomSelect.innerHTML.replace('-- Kies lokaal --', '-- Kies vertrekpunt --');
+startRoomSelect.innerHTML = roomSelect.innerHTML.replace('-- Kies lokaal --', '-- Automatisch geschat startpunt --');
 function clearRoute() {
     routeActive = false;
-    targetGPSMapPoint = displayedGPSMapPoint = null;
     destination.textContent = 'Kies de routeknop om de route te tonen.';
-    mapMessage.textContent = 'Kies een vertrekpunt en bestemming voor de route.';
+
     draw();
 }
-startRoomSelect.addEventListener('change', clearRoute);
+startRoomSelect.addEventListener('change', () => {
+    gpsReference = null;
+    displayedGPSMapPoint = targetGPSMapPoint = null;
+    if (gpsPosition) updateGPSMapPoint(gpsPosition);
+    clearRoute();
+});
 roomSelect.addEventListener('change', clearRoute);
 
 routeButton.addEventListener(
@@ -895,20 +933,17 @@ routeButton.addEventListener(
         }
 
 
-        if (!startRoomSelect.value) {
+        if (!gpsPosition || !displayedGPSMapPoint) {
 
             destination.textContent =
-                "Kies eerst je vertrekpunt.";
+                "Start GPS en wacht op een bruikbare meting.";
 
             return;
 
         }
 
 
-        displayedGPSMapPoint = { ...roomAccess[startRoomSelect.value].door };
-        targetGPSMapPoint = null;
         routeActive = true;
-        mapMessage.textContent = 'Vaste route vanaf lokaal ' + startRoomSelect.value + ' naar ' + room + '.';
 
 
         destination.textContent =
@@ -917,9 +952,9 @@ routeButton.addEventListener(
 
 
         status.textContent =
-            "Vaste route naar lokaal " +
+            "Meebewegende route naar lokaal " +
             room +
-            ". Je positie wordt niet automatisch op de plattegrond gevolgd.";
+            ". GPS-plaatsing is geschat; controleer de route aan de hand van de lokalen.";
 
 
         draw();
@@ -1431,25 +1466,9 @@ function drawGPSMarker() {
     }
 
 
-    const x =
-        Math.max(
-            0,
-            Math.min(
-                MAP_WIDTH,
-                displayedGPSMapPoint.x
-            )
-        );
-
-
-    const y =
-        Math.max(
-            0,
-            Math.min(
-                MAP_HEIGHT,
-                displayedGPSMapPoint.y
-            )
-        );
-
+    // Never clamp a moving off-map position to a stationary edge marker.
+    const { x, y } = displayedGPSMapPoint;
+    if (x < 0 || y < 0 || x > MAP_WIDTH || y > MAP_HEIGHT) return;
 
     const pulse = 19;
 
@@ -1629,9 +1648,12 @@ document.addEventListener(
 ===================================================== */
 
 setInterval(() => {
-    if (gpsRunning && lastAcceptedTimestamp && Date.now() - lastAcceptedTimestamp > LocationCore.MAX_AGE) {
+    if (!gpsRunning || document.visibilityState !== 'visible') return;
+    // Recover a silent watch without restarting it continuously on poor accuracy.
+    if (Date.now() - Math.max(lastReceivedAt, watchStartedAt) > 30000) startLiveWatch();
+    if (lastAcceptedTimestamp && Date.now() - lastAcceptedTimestamp > LocationCore.MAX_AGE) {
         liveStatus.textContent = 'Verouderde positie';
-        gpsStatus.textContent = 'Langer dan 15 seconden geen bruikbare GPS ontvangen. De getoonde coördinaten zijn de laatst bekende positie.';
+        gpsStatus.textContent = 'Langer dan 15 seconden geen bruikbare GPS ontvangen. De stip en gefilterde coördinaten tonen de laatst bekende positie.';
         gpsStatus.className = 'small warning';
     }
 }, 1000);

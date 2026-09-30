@@ -2,7 +2,8 @@
 (function (root) {
     'use strict';
     const MAX_AGE = 15000;
-    const MAX_ACCURACY = 15;
+    // Usable for approximate movement only, never room-level accuracy.
+    const MAX_ACCURACY = 40;
     function validFix(p, now = Date.now()) {
         return p && Number.isFinite(p.latitude) && Math.abs(p.latitude) <= 90 &&
             Number.isFinite(p.longitude) && Math.abs(p.longitude) <= 180 &&

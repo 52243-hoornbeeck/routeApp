@@ -1,20 +1,13 @@
-# GPS en iPhone
+# Live GPS herstellen — versie gps-live-3
 
-Deze versie vraagt precieze locatie aan en filtert ongeldige, oude en zeer onnauwkeurige metingen. Kleine schommelingen bij stilstand worden onderdrukt. Grote sprongen moeten door meerdere metingen bevestigd worden. Starten, stoppen, weigering en hervatten zijn afgehandeld zonder oude callbacks opnieuw te gebruiken.
+De kaartstip volgt weer geaccepteerde GPS-metingen. De route wordt bij het tekenen opnieuw vanaf de bewegende stip berekend. Er is geen verplichte kalibratie of vertrekpuntkeuze.
 
-De PNG heeft geen geografische coördinaten. De oude versie plaatste elke gebruiker automatisch op hetzelfde verzonnen punt en gebruikte een geschatte schaal en richting. Deze versie doet dat niet. GPS-coördinaten blijven beschikbaar in het informatiepaneel. Voor de bestaande lokaalroutes kies je een vertrekpunt. Hiervoor hoef je niets te kalibreren; het is een vaste route, geen live binnenhuisnavigatie. De bestaande lokaal- en gangcoördinaten zijn behouden en niet ter plaatse ingemeten.
+De eerste bruikbare meting krijgt standaard het oude geschatte startpunt (400,272). Een gekozen lokaal kan dat startpunt vervangen. De oorspronkelijke geschatte schaal (12 pixels/meter) en noordrichting zijn behouden. De PNG bevat geen geografische referentie: deze functie toont relatieve GPS-beweging en bewijst niet dat je op dat lokaal, die verdieping of die plek in het gebouw bent.
 
-## Publiceren en testen
+Metingen tot 40 meter onzekerheid worden voor geschatte beweging gebruikt; boven 15 meter verschijnt een waarschuwing. Slechtere, oude en ongeldige metingen worden afgewezen. Een grote plotselinge sprong moet bevestigd worden. De ontvangsttijd wordt ook bijgewerkt wanneer een te onnauwkeurige meting wordt afgewezen. Een verbinding die 30 seconden geen verse meting doorgeeft wordt opnieuw gestart zolang de app zichtbaar is.
 
-Publiceer index.html, location-core.js en sw.js samen met de bestaande overige bestanden op dezelfde HTTPS-locatie. Alleen opslaan op de computer verandert de versie op de telefoon niet. Er is vanuit deze chat niets online gepubliceerd.
+17 geautomatiseerde tests controleren onder meer zichtbare stipbeweging zonder vertrekpuntkeuze, wandelbeweging, stilstand, sprongen, herstarten en het herstellen van een stille locatieverbinding. Uitvoeren: node tests/gps.test.cjs.
 
-1. Open de HTTPS-site in Safari en herlaad de app. Controleer of 'GPS opnieuw zoeken' en de keuzelijst 'Vertrekpunt' zichtbaar zijn.
-2. Start de locatie en sta op je iPhone precieze locatie toe voor deze website.
-3. Test buiten: 60 seconden stilstaan, daarna 30 meter lopen. Vergelijk de getoonde onzekerheid en coördinaten; binnenshuis kan de locatie onvoldoende betrouwbaar zijn.
-4. Stop tijdens het zoeken: de status moet Uit blijven. Start opnieuw, zet de app kort op de achtergrond en open hem weer.
-5. Zonder nieuwe bruikbare meting verschijnt na 15 seconden 'Verouderde positie'. Bij onnauwkeurige metingen blijft de laatst bruikbare positie staan met een waarschuwing.
-6. Kies een vertrekpunt en bestemming om de vaste route te zien. De rode stip geeft het gekozen vertrekpunt aan, niet een gemeten gps-positie.
+## Test op iPhone
 
-13 geautomatiseerde tests geslaagd; routeweergave in de ingebouwde browser gecontroleerd. Nog niet op een fysieke iPhone getest. De onzekerheid van de telefoon wordt niet kleiner voorgesteld door filtering. Accurate automatische positie op deze PNG is met de beschikbare gegevens niet gerealiseerd.
-
-Technische referentie: https://www.w3.org/TR/geolocation/ (hoge nauwkeurigheid is een verzoek aan de browser, geen garantie).
+Open de gepubliceerde site opnieuw, herlaad en controleer of 'Bekend vertrekpunt (optioneel)' zichtbaar is. Start GPS met precieze locatie toegestaan. Loop buiten 10 meter; de stip en 'Laatste ontvangen meting' moeten veranderen zodra iOS verse bruikbare metingen doorgeeft. Binnen kan GPS onvoldoende betrouwbaar zijn. Een positie buiten de PNG wordt gemeld, niet tegen de kaartrand vastgezet. Nog niet getest op een fysieke iPhone.
