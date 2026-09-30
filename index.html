@@ -1,0 +1,2340 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Hoornbeeck Gebouwenroute</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #111827;
+    color: white;
+}
+
+header {
+    background: #1f2937;
+    padding: 18px;
+    text-align: center;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.container {
+    max-width: 1000px;
+    margin: auto;
+    padding: 20px;
+}
+
+.card {
+    background: #1f2937;
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 18px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.25);
+}
+
+h2 {
+    margin-top: 0;
+}
+
+button,
+select {
+    width: 100%;
+    padding: 13px;
+    margin-top: 10px;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+}
+
+button {
+    background: #2563eb;
+    color: white;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #1d4ed8;
+}
+
+#resetGpsButton {
+    background: #dc2626;
+}
+
+#resetGpsButton:hover {
+    background: #b91c1c;
+}
+
+#mapContainer {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 12px;
+    background: #000;
+}
+
+#mapImage {
+    width: 100%;
+    display: block;
+}
+
+#canvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+}
+
+#mapMessage {
+    text-align: center;
+    padding: 10px;
+    color: #cbd5e1;
+}
+
+.info {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+.infoBox {
+    background: #111827;
+    padding: 12px;
+    border-radius: 10px;
+}
+
+.label {
+    color: #9ca3af;
+    font-size: 13px;
+}
+
+.value {
+    margin-top: 4px;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+
+.legendItem {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.legendColor {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+}
+
+#status {
+    padding: 12px;
+    border-radius: 10px;
+    background: #111827;
+}
+
+.small {
+    color: #9ca3af;
+    font-size: 13px;
+    margin-top: 8px;
+}
+
+@media (max-width: 600px) {
+    header {
+        font-size: 20px;
+    }
+
+    .container {
+        padding: 12px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    🏫 Hoornbeeck Gebouwenroute
+</header>
+
+<div class="container">
+
+    <div class="card">
+        <h2>📍 Live GPS</h2>
+
+        <button id="gpsButton">
+            📍 GPS starten
+        </button>
+
+        <button id="resetGpsButton">
+            🔄 GPS startpositie opnieuw instellen
+        </button>
+
+        <div class="small" id="gpsStatus">
+            GPS staat uit.
+        </div>
+    </div>
+
+
+    <div class="card">
+        <h2>📡 GPS informatie</h2>
+
+        <div class="info">
+
+            <div class="infoBox">
+                <div class="label">Latitude</div>
+                <div class="value" id="latitude">-</div>
+            </div>
+
+            <div class="infoBox">
+                <div class="label">Longitude</div>
+                <div class="value" id="longitude">-</div>
+            </div>
+
+            <div class="infoBox">
+                <div class="label">Nauwkeurigheid</div>
+                <div class="value" id="accuracy">-</div>
+            </div>
+
+            <div class="infoBox">
+                <div class="label">Live status</div>
+                <div class="value" id="liveStatus">Uit</div>
+            </div>
+
+            <div class="infoBox">
+                <div class="label">Laatste update</div>
+                <div class="value" id="lastUpdate">-</div>
+            </div>
+
+            <div class="infoBox">
+                <div class="label">Verplaatsing</div>
+                <div class="value" id="movement">-</div>
+            </div>
+
+        </div>
+    </div>
+
+
+    <div class="card">
+        <h2>🚶 Route</h2>
+
+        <select id="roomSelect">
+
+            <option value="">
+                -- Kies lokaal --
+            </option>
+
+            <option value="4.08">4.08</option>
+            <option value="4.09">4.09</option>
+            <option value="4.07">4.07</option>
+            <option value="4.06">4.06</option>
+            <option value="4.05">4.05</option>
+            <option value="4.10">4.10</option>
+            <option value="4.04">4.04</option>
+            <option value="4.03">4.03</option>
+            <option value="TR">TR</option>
+            <option value="4.01">4.01</option>
+
+        </select>
+
+        <button id="routeButton">
+            🧭 Route berekenen
+        </button>
+
+        <div class="small" id="destination">
+            Geen bestemming gekozen.
+        </div>
+    </div>
+
+
+    <div class="card">
+        <h2>🗺️ Plattegrond</h2>
+
+        <div id="mapContainer">
+
+            <img
+                id="mapImage"
+                src="plattegrond.png"
+                alt="Plattegrond"
+            >
+
+            <canvas id="canvas"></canvas>
+
+        </div>
+
+        <div id="mapMessage">
+            Start GPS om je live positie te zien.
+        </div>
+
+        <div class="legend">
+
+            <div class="legendItem">
+                <div
+                    class="legendColor"
+                    style="background:#ef4444;"
+                ></div>
+                Live GPS
+            </div>
+
+            <div class="legendItem">
+                <div
+                    class="legendColor"
+                    style="background:#22c55e;"
+                ></div>
+                Route
+            </div>
+
+            <div class="legendItem">
+                <div
+                    class="legendColor"
+                    style="background:#3b82f6;"
+                ></div>
+                Bestemming
+            </div>
+
+        </div>
+    </div>
+
+
+    <div class="card">
+        <h2>ℹ️ Status</h2>
+
+        <div id="status">
+            Klaar.
+        </div>
+    </div>
+
+</div>
+
+
+<script>
+
+/* =====================================================
+   KAART INSTELLINGEN
+===================================================== */
+
+const MAP_WIDTH = 755;
+const MAP_HEIGHT = 553;
+
+
+/*
+   Omdat je geen kalibratie wilt gebruiken,
+   wordt de eerste GPS-positie automatisch
+   in het midden van de hoofdgang geplaatst.
+*/
+
+const AUTO_MAP_START = {
+    x: 400,
+    y: 272
+};
+
+
+/*
+   Geschatte schaal.
+
+   Als je 1 echte meter loopt, beweegt de
+   stip ongeveer 12 pixels op de originele
+   plattegrond.
+*/
+
+const PIXELS_PER_METER = 12;
+
+
+/*
+   Draaiing van GPS ten opzichte van de kaart.
+
+   Zonder echte coördinaten van het gebouw
+   is de echte draaiing niet bekend.
+
+   0 betekent:
+   oost = rechts
+   noord = boven
+*/
+
+const MAP_ROTATION_DEG = 0;
+
+
+/* =====================================================
+   GPS VARIABELEN
+===================================================== */
+
+let watchId = null;
+
+let pollInterval = null;
+
+let pollBusy = false;
+
+let gpsRunning = false;
+
+let gpsPosition = null;
+
+let previousGPSPosition = null;
+
+let gpsReference = null;
+
+let targetGPSMapPoint = null;
+
+let displayedGPSMapPoint = null;
+
+let routeActive = false;
+
+let gpsUpdateCount = 0;
+
+
+/* =====================================================
+   ELEMENTEN
+===================================================== */
+
+const gpsButton =
+    document.getElementById("gpsButton");
+
+const resetGpsButton =
+    document.getElementById("resetGpsButton");
+
+const gpsStatus =
+    document.getElementById("gpsStatus");
+
+const latitude =
+    document.getElementById("latitude");
+
+const longitude =
+    document.getElementById("longitude");
+
+const accuracy =
+    document.getElementById("accuracy");
+
+const liveStatus =
+    document.getElementById("liveStatus");
+
+const lastUpdate =
+    document.getElementById("lastUpdate");
+
+const movement =
+    document.getElementById("movement");
+
+const roomSelect =
+    document.getElementById("roomSelect");
+
+const routeButton =
+    document.getElementById("routeButton");
+
+const destination =
+    document.getElementById("destination");
+
+const status =
+    document.getElementById("status");
+
+const mapContainer =
+    document.getElementById("mapContainer");
+
+const mapImage =
+    document.getElementById("mapImage");
+
+const canvas =
+    document.getElementById("canvas");
+
+const ctx =
+    canvas.getContext("2d");
+
+const mapMessage =
+    document.getElementById("mapMessage");
+
+
+/* =====================================================
+   KAMERS
+===================================================== */
+
+const rooms = {
+
+    "4.08": {
+        x:110,
+        y:230
+    },
+
+    "4.09": {
+        x:175,
+        y:245
+    },
+
+    "4.07": {
+        x:100,
+        y:350
+    },
+
+    "4.06": {
+        x:170,
+        y:325
+    },
+
+    "4.05": {
+        x:235,
+        y:325
+    },
+
+    "4.10": {
+        x:320,
+        y:210
+    },
+
+    "4.04": {
+        x:320,
+        y:325
+    },
+
+    "4.03": {
+        x:475,
+        y:315
+    },
+
+    "TR": {
+        x:605,
+        y:105
+    },
+
+    "4.01": {
+        x:680,
+        y:250
+    }
+
+};
+
+
+/* =====================================================
+   GANG NODES
+===================================================== */
+
+const nodes = {
+
+    A:{x:85,y:272},
+    B:{x:145,y:272},
+    C:{x:205,y:272},
+    D:{x:270,y:272},
+    E:{x:335,y:272},
+    F:{x:400,y:272},
+    G:{x:455,y:272},
+    H:{x:505,y:272},
+    I:{x:550,y:272},
+    J:{x:570,y:247},
+    K:{x:590,y:220},
+    L:{x:610,y:193},
+    M:{x:630,y:170},
+
+    T1:{x:590,y:180},
+    T2:{x:600,y:145},
+
+    R1:{x:650,y:185},
+    R2:{x:670,y:210},
+    R3:{x:687,y:240}
+
+};
+
+
+/* =====================================================
+   GANG VERBINDINGEN
+===================================================== */
+
+const connections = [
+
+    ["A","B"],
+    ["B","C"],
+    ["C","D"],
+    ["D","E"],
+    ["E","F"],
+    ["F","G"],
+    ["G","H"],
+    ["H","I"],
+
+    ["I","J"],
+    ["J","K"],
+    ["K","L"],
+    ["L","M"],
+
+    ["L","T1"],
+    ["T1","T2"],
+
+    ["M","R1"],
+    ["R1","R2"],
+    ["R2","R3"]
+
+];
+
+
+/* =====================================================
+   LOKAAL INGANGEN
+===================================================== */
+
+const roomAccess = {
+
+    "4.08":{
+        node:"B",
+        door:{x:145,y:245}
+    },
+
+    "4.09":{
+        node:"C",
+        door:{x:190,y:255}
+    },
+
+    "4.07":{
+        node:"B",
+        door:{x:145,y:305}
+    },
+
+    "4.06":{
+        node:"C",
+        door:{x:205,y:300}
+    },
+
+    "4.05":{
+        node:"D",
+        door:{x:250,y:300}
+    },
+
+    "4.10":{
+        node:"E",
+        door:{x:320,y:245}
+    },
+
+    "4.04":{
+        node:"E",
+        door:{x:320,y:300}
+    },
+
+    "4.03":{
+        node:"G",
+        door:{x:455,y:295}
+    },
+
+    "TR":{
+        node:"T2",
+        door:{x:602,y:125}
+    },
+
+    "4.01":{
+        node:"R3",
+        door:{x:685,y:245}
+    }
+
+};
+
+
+/* =====================================================
+   CANVAS
+===================================================== */
+
+function resizeCanvas() {
+
+    const rect =
+        mapContainer.getBoundingClientRect();
+
+
+    canvas.width =
+        rect.width;
+
+
+    canvas.height =
+        rect.height;
+
+
+    draw();
+
+}
+
+
+window.addEventListener(
+    "resize",
+    resizeCanvas
+);
+
+
+mapImage.addEventListener(
+    "load",
+    resizeCanvas
+);
+
+
+/* =====================================================
+   GPS KNOP
+===================================================== */
+
+gpsButton.addEventListener(
+    "click",
+    function() {
+
+        if (gpsRunning) {
+
+            stopGPS();
+
+        } else {
+
+            startGPS();
+
+        }
+
+    }
+);
+
+
+/* =====================================================
+   GPS STARTEN
+===================================================== */
+
+function startGPS() {
+
+    if (!navigator.geolocation) {
+
+        gpsStatus.textContent =
+            "Deze browser ondersteunt geen locatie.";
+
+        liveStatus.textContent =
+            "Niet beschikbaar";
+
+        status.textContent =
+            "Geolocation wordt niet ondersteund.";
+
+        return;
+
+    }
+
+
+    if (!window.isSecureContext) {
+
+        gpsStatus.textContent =
+            "GPS werkt alleen via HTTPS of localhost.";
+
+        liveStatus.textContent =
+            "Geblokkeerd";
+
+        status.textContent =
+            "Open de website via localhost of HTTPS.";
+
+        return;
+
+    }
+
+
+    if (gpsRunning) {
+        return;
+    }
+
+
+    gpsRunning = true;
+
+
+    gpsButton.textContent =
+        "⛔ GPS stoppen";
+
+
+    gpsStatus.textContent =
+        "Live GPS wordt gestart...";
+
+
+    liveStatus.textContent =
+        "Zoeken...";
+
+
+    status.textContent =
+        "Wachten op eerste locatie...";
+
+
+    /*
+       Oude watch verwijderen.
+    */
+
+    if (watchId !== null) {
+
+        navigator.geolocation.clearWatch(
+            watchId
+        );
+
+        watchId = null;
+
+    }
+
+
+    /*
+       LIVE WATCH.
+
+       Deze blijft continu luisteren naar
+       nieuwe GPS-posities.
+    */
+
+    watchId =
+        navigator.geolocation.watchPosition(
+
+            handleGPSPosition,
+
+            handleGPSError,
+
+            {
+                enableHighAccuracy: true,
+                maximumAge: 0,
+                timeout: 20000
+            }
+
+        );
+
+
+    /*
+       Meteen een eerste verse positie aanvragen.
+    */
+
+    requestFreshGPS();
+
+
+    /*
+       Extra controle ongeveer iedere 1,5 seconde.
+
+       watchPosition blijft de hoofd-GPS.
+       Dit is alleen een extra verzoek om
+       een verse locatie.
+    */
+
+    if (pollInterval !== null) {
+
+        clearInterval(
+            pollInterval
+        );
+
+    }
+
+
+    pollInterval =
+        setInterval(
+            function() {
+
+                if (gpsRunning) {
+                    requestFreshGPS();
+                }
+
+            },
+            1500
+        );
+
+}
+
+
+/* =====================================================
+   EXTRA VERSE GPS POSITIE
+===================================================== */
+
+function requestFreshGPS() {
+
+    if (
+        !gpsRunning ||
+        !navigator.geolocation ||
+        pollBusy
+    ) {
+
+        return;
+
+    }
+
+
+    pollBusy = true;
+
+
+    navigator.geolocation.getCurrentPosition(
+
+        function(position) {
+
+            pollBusy = false;
+
+            handleGPSPosition(
+                position
+            );
+
+        },
+
+        function(error) {
+
+            pollBusy = false;
+
+
+            /*
+               Timeout bij de extra aanvraag
+               stopt de GPS niet.
+            */
+
+            if (
+                error.code ===
+                error.PERMISSION_DENIED
+            ) {
+
+                handleGPSError(
+                    error
+                );
+
+            }
+
+        },
+
+        {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 10000
+        }
+
+    );
+
+}
+
+
+/* =====================================================
+   GPS STOPPEN
+===================================================== */
+
+function stopGPS() {
+
+    gpsRunning = false;
+
+
+    if (watchId !== null) {
+
+        navigator.geolocation.clearWatch(
+            watchId
+        );
+
+        watchId = null;
+
+    }
+
+
+    if (pollInterval !== null) {
+
+        clearInterval(
+            pollInterval
+        );
+
+        pollInterval = null;
+
+    }
+
+
+    pollBusy = false;
+
+
+    gpsButton.textContent =
+        "📍 GPS starten";
+
+
+    gpsStatus.textContent =
+        "GPS staat uit.";
+
+
+    liveStatus.textContent =
+        "Uit";
+
+
+    status.textContent =
+        "Live GPS gestopt.";
+
+}
+
+
+/* =====================================================
+   NIEUWE GPS POSITIE
+===================================================== */
+
+function handleGPSPosition(position) {
+
+    if (!gpsRunning) {
+        return;
+    }
+
+
+    const newGPS = {
+
+        latitude:
+            position.coords.latitude,
+
+        longitude:
+            position.coords.longitude,
+
+        accuracy:
+            position.coords.accuracy,
+
+        altitude:
+            position.coords.altitude,
+
+        heading:
+            position.coords.heading,
+
+        speed:
+            position.coords.speed,
+
+        timestamp:
+            position.timestamp || Date.now()
+
+    };
+
+
+    gpsUpdateCount++;
+
+
+    /*
+       GPS informatie direct tonen.
+    */
+
+    latitude.textContent =
+        newGPS.latitude.toFixed(7);
+
+
+    longitude.textContent =
+        newGPS.longitude.toFixed(7);
+
+
+    accuracy.textContent =
+        Math.round(
+            newGPS.accuracy
+        ) + " meter";
+
+
+    liveStatus.textContent =
+        "LIVE";
+
+
+    const time =
+        new Date(
+            newGPS.timestamp
+        );
+
+
+    lastUpdate.textContent =
+        time.toLocaleTimeString(
+            "nl-NL"
+        );
+
+
+    /*
+       Afstand sinds vorige echte locatie-update.
+    */
+
+    if (previousGPSPosition) {
+
+        const moved =
+            gpsDistanceMeters(
+                previousGPSPosition,
+                newGPS
+            );
+
+
+        movement.textContent =
+            moved.toFixed(2) +
+            " meter";
+
+    } else {
+
+        movement.textContent =
+            "Start";
+
+    }
+
+
+    /*
+       De eerste GPS-positie wordt automatisch
+       gekoppeld aan het midden van de gang.
+    */
+
+    if (!gpsReference) {
+
+        gpsReference = {
+
+            latitude:
+                newGPS.latitude,
+
+            longitude:
+                newGPS.longitude,
+
+            mapX:
+                AUTO_MAP_START.x,
+
+            mapY:
+                AUTO_MAP_START.y
+
+        };
+
+
+        gpsPosition =
+            newGPS;
+
+
+        previousGPSPosition =
+            newGPS;
+
+
+        targetGPSMapPoint = {
+
+            x:
+                AUTO_MAP_START.x,
+
+            y:
+                AUTO_MAP_START.y
+
+        };
+
+
+        displayedGPSMapPoint = {
+
+            x:
+                AUTO_MAP_START.x,
+
+            y:
+                AUTO_MAP_START.y
+
+        };
+
+
+        gpsStatus.textContent =
+            "GPS is LIVE.";
+
+
+        mapMessage.textContent =
+            "Live GPS actief.";
+
+
+        status.textContent =
+            "Eerste GPS-positie ontvangen. Update #" +
+            gpsUpdateCount;
+
+
+        draw();
+
+        return;
+
+    }
+
+
+    /*
+       BELANGRIJK:
+
+       GEEN afstandsfilter.
+       GEEN GPS-sprongfilter.
+       GEEN snap naar de gang.
+
+       Iedere nieuwe coördinaat wordt gebruikt.
+    */
+
+    gpsPosition =
+        newGPS;
+
+
+    const newPoint =
+        gpsToMap(
+            newGPS
+        );
+
+
+    if (
+        newPoint &&
+        Number.isFinite(newPoint.x) &&
+        Number.isFinite(newPoint.y)
+    ) {
+
+        targetGPSMapPoint = {
+
+            x:
+                newPoint.x,
+
+            y:
+                newPoint.y
+
+        };
+
+
+        if (!displayedGPSMapPoint) {
+
+            displayedGPSMapPoint = {
+
+                x:
+                    newPoint.x,
+
+                y:
+                    newPoint.y
+
+            };
+
+        }
+
+    }
+
+
+    previousGPSPosition =
+        newGPS;
+
+
+    gpsStatus.textContent =
+        "GPS wordt live bijgewerkt.";
+
+
+    status.textContent =
+        "Live GPS update #" +
+        gpsUpdateCount +
+        " ontvangen om " +
+        time.toLocaleTimeString(
+            "nl-NL"
+        );
+
+
+    draw();
+
+}
+
+
+/* =====================================================
+   GPS FOUT
+===================================================== */
+
+function handleGPSError(error) {
+
+    console.log(
+        "GPS fout:",
+        error
+    );
+
+
+    if (
+        error.code ===
+        error.PERMISSION_DENIED
+    ) {
+
+        stopGPS();
+
+
+        gpsStatus.textContent =
+            "Locatietoegang geweigerd.";
+
+
+        liveStatus.textContent =
+            "Geen toestemming";
+
+
+        status.textContent =
+            "Geef deze website toestemming voor locatie.";
+
+        return;
+
+    }
+
+
+    if (
+        error.code ===
+        error.POSITION_UNAVAILABLE
+    ) {
+
+        gpsStatus.textContent =
+            "Locatie tijdelijk niet beschikbaar.";
+
+
+        liveStatus.textContent =
+            "Zoeken...";
+
+
+        status.textContent =
+            "GPS blijft zoeken naar een nieuwe locatie.";
+
+        return;
+
+    }
+
+
+    if (
+        error.code ===
+        error.TIMEOUT
+    ) {
+
+        gpsStatus.textContent =
+            "GPS zoekt nog naar een nieuwe positie.";
+
+
+        liveStatus.textContent =
+            "Zoeken...";
+
+
+        status.textContent =
+            "GPS blijft actief.";
+
+    }
+
+}
+
+
+/* =====================================================
+   GPS -> PLATTEGROND
+===================================================== */
+
+function gpsToMap(position) {
+
+    if (!gpsReference) {
+        return null;
+    }
+
+
+    /*
+       Noord/zuid afstand in meters.
+    */
+
+    const northMeters =
+        (
+            position.latitude -
+            gpsReference.latitude
+        ) *
+        111320;
+
+
+    /*
+       Oost/west afstand in meters.
+    */
+
+    const eastMeters =
+        (
+            position.longitude -
+            gpsReference.longitude
+        ) *
+        111320 *
+        Math.cos(
+            gpsReference.latitude *
+            Math.PI /
+            180
+        );
+
+
+    /*
+       Eventuele kaartrotatie.
+    */
+
+    const angle =
+        MAP_ROTATION_DEG *
+        Math.PI /
+        180;
+
+
+    const rotatedX =
+        eastMeters *
+        Math.cos(angle) -
+        northMeters *
+        Math.sin(angle);
+
+
+    const rotatedY =
+        eastMeters *
+        Math.sin(angle) +
+        northMeters *
+        Math.cos(angle);
+
+
+    /*
+       GPS omzetten naar pixels.
+    */
+
+    return {
+
+        x:
+            gpsReference.mapX +
+            rotatedX *
+            PIXELS_PER_METER,
+
+        y:
+            gpsReference.mapY -
+            rotatedY *
+            PIXELS_PER_METER
+
+    };
+
+}
+
+
+/* =====================================================
+   GPS AFSTAND
+===================================================== */
+
+function gpsDistanceMeters(a, b) {
+
+    const earthRadius =
+        6371000;
+
+
+    const lat1 =
+        a.latitude *
+        Math.PI /
+        180;
+
+
+    const lat2 =
+        b.latitude *
+        Math.PI /
+        180;
+
+
+    const deltaLat =
+        (
+            b.latitude -
+            a.latitude
+        ) *
+        Math.PI /
+        180;
+
+
+    const deltaLon =
+        (
+            b.longitude -
+            a.longitude
+        ) *
+        Math.PI /
+        180;
+
+
+    const h =
+        Math.sin(
+            deltaLat / 2
+        ) *
+        Math.sin(
+            deltaLat / 2
+        ) +
+
+        Math.cos(
+            lat1
+        ) *
+        Math.cos(
+            lat2
+        ) *
+
+        Math.sin(
+            deltaLon / 2
+        ) *
+        Math.sin(
+            deltaLon / 2
+        );
+
+
+    return (
+        earthRadius *
+        2 *
+        Math.atan2(
+            Math.sqrt(h),
+            Math.sqrt(1 - h)
+        )
+    );
+
+}
+
+
+/* =====================================================
+   GPS STARTPOSITIE RESETTEN
+===================================================== */
+
+resetGpsButton.addEventListener(
+    "click",
+    function() {
+
+        gpsReference = null;
+
+        gpsPosition = null;
+
+        previousGPSPosition = null;
+
+        targetGPSMapPoint = null;
+
+        displayedGPSMapPoint = null;
+
+        routeActive = false;
+
+        gpsUpdateCount = 0;
+
+
+        movement.textContent =
+            "-";
+
+
+        mapMessage.textContent =
+            "Startpositie opnieuw ingesteld.";
+
+
+        status.textContent =
+            "De volgende GPS-positie wordt het nieuwe startpunt.";
+
+
+        if (gpsRunning) {
+
+            requestFreshGPS();
+
+        }
+
+
+        draw();
+
+    }
+);
+
+
+/* =====================================================
+   ROUTE KNOP
+===================================================== */
+
+routeButton.addEventListener(
+    "click",
+    function() {
+
+        const room =
+            roomSelect.value;
+
+
+        if (!room) {
+
+            destination.textContent =
+                "Kies eerst een lokaal.";
+
+            return;
+
+        }
+
+
+        if (!gpsPosition) {
+
+            destination.textContent =
+                "Start eerst GPS.";
+
+            return;
+
+        }
+
+
+        routeActive =
+            true;
+
+
+        destination.textContent =
+            "Bestemming: lokaal " +
+            room;
+
+
+        status.textContent =
+            "Live route naar lokaal " +
+            room +
+            " actief.";
+
+
+        draw();
+
+    }
+);
+
+
+/* =====================================================
+   AFSTAND PIXELS
+===================================================== */
+
+function distance(a, b) {
+
+    return Math.hypot(
+        a.x - b.x,
+        a.y - b.y
+    );
+
+}
+
+
+/* =====================================================
+   DICHTSTBIJZIJNDE NODE
+===================================================== */
+
+function nearestNode(point) {
+
+    let best =
+        null;
+
+
+    let bestDistance =
+        Infinity;
+
+
+    for (
+        const key in nodes
+    ) {
+
+        const d =
+            distance(
+                point,
+                nodes[key]
+            );
+
+
+        if (
+            d <
+            bestDistance
+        ) {
+
+            bestDistance =
+                d;
+
+
+            best =
+                key;
+
+        }
+
+    }
+
+
+    return best;
+
+}
+
+
+/* =====================================================
+   PUNT OP GANGSEGMENT
+===================================================== */
+
+function projectPointToSegment(
+    point,
+    a,
+    b
+) {
+
+    const abX =
+        b.x -
+        a.x;
+
+
+    const abY =
+        b.y -
+        a.y;
+
+
+    const apX =
+        point.x -
+        a.x;
+
+
+    const apY =
+        point.y -
+        a.y;
+
+
+    const lengthSquared =
+        abX * abX +
+        abY * abY;
+
+
+    if (
+        lengthSquared === 0
+    ) {
+
+        return {
+
+            x:a.x,
+
+            y:a.y
+
+        };
+
+    }
+
+
+    let t =
+        (
+            apX * abX +
+            apY * abY
+        ) /
+        lengthSquared;
+
+
+    t =
+        Math.max(
+            0,
+            Math.min(
+                1,
+                t
+            )
+        );
+
+
+    return {
+
+        x:
+            a.x +
+            abX * t,
+
+        y:
+            a.y +
+            abY * t
+
+    };
+
+}
+
+
+/* =====================================================
+   DICHTSTBIJZIJNDE PUNT OP GANG
+===================================================== */
+
+function projectToNearestHallway(
+    point
+) {
+
+    let bestPoint =
+        point;
+
+
+    let bestDistance =
+        Infinity;
+
+
+    for (
+        const connection
+        of connections
+    ) {
+
+        const a =
+            nodes[
+                connection[0]
+            ];
+
+
+        const b =
+            nodes[
+                connection[1]
+            ];
+
+
+        const projected =
+            projectPointToSegment(
+                point,
+                a,
+                b
+            );
+
+
+        const d =
+            distance(
+                point,
+                projected
+            );
+
+
+        if (
+            d <
+            bestDistance
+        ) {
+
+            bestDistance =
+                d;
+
+
+            bestPoint =
+                projected;
+
+        }
+
+    }
+
+
+    return bestPoint;
+
+}
+
+
+/* =====================================================
+   DIJKSTRA
+===================================================== */
+
+function dijkstra(
+    start,
+    end
+) {
+
+    const dist = {};
+
+    const previous = {};
+
+    const visited = {};
+
+
+    for (
+        const key in nodes
+    ) {
+
+        dist[key] =
+            Infinity;
+
+
+        previous[key] =
+            null;
+
+
+        visited[key] =
+            false;
+
+    }
+
+
+    dist[start] =
+        0;
+
+
+    while (true) {
+
+        let current =
+            null;
+
+
+        let best =
+            Infinity;
+
+
+        for (
+            const key in nodes
+        ) {
+
+            if (
+                !visited[key] &&
+                dist[key] <
+                best
+            ) {
+
+                best =
+                    dist[key];
+
+
+                current =
+                    key;
+
+            }
+
+        }
+
+
+        if (
+            current === null ||
+            current === end
+        ) {
+
+            break;
+
+        }
+
+
+        visited[current] =
+            true;
+
+
+        for (
+            const connection
+            of connections
+        ) {
+
+            let neighbour =
+                null;
+
+
+            if (
+                connection[0] ===
+                current
+            ) {
+
+                neighbour =
+                    connection[1];
+
+            }
+
+            else if (
+                connection[1] ===
+                current
+            ) {
+
+                neighbour =
+                    connection[0];
+
+            }
+
+
+            if (!neighbour) {
+                continue;
+            }
+
+
+            const weight =
+                distance(
+                    nodes[current],
+                    nodes[neighbour]
+                );
+
+
+            const newDistance =
+                dist[current] +
+                weight;
+
+
+            if (
+                newDistance <
+                dist[neighbour]
+            ) {
+
+                dist[neighbour] =
+                    newDistance;
+
+
+                previous[neighbour] =
+                    current;
+
+            }
+
+        }
+
+    }
+
+
+    const path =
+        [];
+
+
+    let current =
+        end;
+
+
+    while (current) {
+
+        path.unshift(
+            current
+        );
+
+
+        current =
+            previous[current];
+
+    }
+
+
+    return path;
+
+}
+
+
+/* =====================================================
+   ROUTE TEKENEN
+===================================================== */
+
+function drawRoute() {
+
+    if (
+        !routeActive ||
+        !displayedGPSMapPoint
+    ) {
+
+        return;
+
+    }
+
+
+    const room =
+        roomSelect.value;
+
+
+    if (!room) {
+        return;
+    }
+
+
+    const access =
+        roomAccess[room];
+
+
+    if (!access) {
+        return;
+    }
+
+
+    /*
+       Voor de ROUTE gebruiken we wel
+       de dichtstbijzijnde gang.
+
+       De rode GPS-stip zelf blijft echter
+       op de echte berekende GPS-positie.
+    */
+
+    const hallwayStart =
+        projectToNearestHallway(
+            displayedGPSMapPoint
+        );
+
+
+    const startNode =
+        nearestNode(
+            hallwayStart
+        );
+
+
+    const path =
+        dijkstra(
+            startNode,
+            access.node
+        );
+
+
+    if (!path.length) {
+        return;
+    }
+
+
+    ctx.beginPath();
+
+
+    ctx.moveTo(
+        displayedGPSMapPoint.x,
+        displayedGPSMapPoint.y
+    );
+
+
+    ctx.lineTo(
+        hallwayStart.x,
+        hallwayStart.y
+    );
+
+
+    ctx.lineTo(
+        nodes[startNode].x,
+        nodes[startNode].y
+    );
+
+
+    for (
+        const node
+        of path
+    ) {
+
+        ctx.lineTo(
+            nodes[node].x,
+            nodes[node].y
+        );
+
+    }
+
+
+    ctx.lineTo(
+        access.door.x,
+        access.door.y
+    );
+
+
+    ctx.lineWidth =
+        6;
+
+
+    ctx.strokeStyle =
+        "#22c55e";
+
+
+    ctx.lineCap =
+        "round";
+
+
+    ctx.lineJoin =
+        "round";
+
+
+    ctx.stroke();
+
+
+    /*
+       Blauwe bestemming.
+    */
+
+    ctx.beginPath();
+
+
+    ctx.arc(
+        access.door.x,
+        access.door.y,
+        9,
+        0,
+        Math.PI * 2
+    );
+
+
+    ctx.fillStyle =
+        "#3b82f6";
+
+
+    ctx.fill();
+
+}
+
+
+/* =====================================================
+   GPS STIP TEKENEN
+===================================================== */
+
+function drawGPSMarker() {
+
+    if (!displayedGPSMapPoint) {
+        return;
+    }
+
+
+    /*
+       Buiten de kaart nog steeds begrenzen,
+       zodat je de stip niet volledig kwijtraakt.
+    */
+
+    const x =
+        Math.max(
+            0,
+            Math.min(
+                MAP_WIDTH,
+                displayedGPSMapPoint.x
+            )
+        );
+
+
+    const y =
+        Math.max(
+            0,
+            Math.min(
+                MAP_HEIGHT,
+                displayedGPSMapPoint.y
+            )
+        );
+
+
+    /*
+       Buitenste ring.
+    */
+
+    ctx.beginPath();
+
+
+    ctx.arc(
+        x,
+        y,
+        21,
+        0,
+        Math.PI * 2
+    );
+
+
+    ctx.fillStyle =
+        "rgba(239,68,68,0.20)";
+
+
+    ctx.fill();
+
+
+    /*
+       Witte rand.
+    */
+
+    ctx.beginPath();
+
+
+    ctx.arc(
+        x,
+        y,
+        12,
+        0,
+        Math.PI * 2
+    );
+
+
+    ctx.fillStyle =
+        "white";
+
+
+    ctx.fill();
+
+
+    /*
+       Rode GPS stip.
+    */
+
+    ctx.beginPath();
+
+
+    ctx.arc(
+        x,
+        y,
+        9,
+        0,
+        Math.PI * 2
+    );
+
+
+    ctx.fillStyle =
+        "#ef4444";
+
+
+    ctx.fill();
+
+}
+
+
+/* =====================================================
+   ALLES TEKENEN
+===================================================== */
+
+function draw() {
+
+    if (
+        !canvas.width ||
+        !canvas.height
+    ) {
+
+        return;
+
+    }
+
+
+    ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+
+    const scaleX =
+        canvas.width /
+        MAP_WIDTH;
+
+
+    const scaleY =
+        canvas.height /
+        MAP_HEIGHT;
+
+
+    ctx.save();
+
+
+    ctx.scale(
+        scaleX,
+        scaleY
+    );
+
+
+    drawRoute();
+
+
+    drawGPSMarker();
+
+
+    ctx.restore();
+
+}
+
+
+/* =====================================================
+   VLOEIENDE BEWEGING
+===================================================== */
+
+function animateGPS() {
+
+    if (
+        targetGPSMapPoint &&
+        displayedGPSMapPoint
+    ) {
+
+        /*
+           Vrij snel naar iedere nieuwe
+           GPS-positie bewegen.
+        */
+
+        const smoothing =
+            0.25;
+
+
+        displayedGPSMapPoint.x +=
+            (
+                targetGPSMapPoint.x -
+                displayedGPSMapPoint.x
+            ) *
+            smoothing;
+
+
+        displayedGPSMapPoint.y +=
+            (
+                targetGPSMapPoint.y -
+                displayedGPSMapPoint.y
+            ) *
+            smoothing;
+
+    }
+
+
+    draw();
+
+
+    requestAnimationFrame(
+        animateGPS
+    );
+
+}
+
+
+/* =====================================================
+   TERUGKEREN NAAR DE PAGINA
+===================================================== */
+
+document.addEventListener(
+    "visibilitychange",
+    function() {
+
+        if (
+            document.visibilityState ===
+                "visible" &&
+            gpsRunning
+        ) {
+
+            requestFreshGPS();
+
+        }
+
+    }
+);
+
+
+/* =====================================================
+   TELEFOON WEER ACTIEF
+===================================================== */
+
+window.addEventListener(
+    "focus",
+    function() {
+
+        if (gpsRunning) {
+
+            requestFreshGPS();
+
+        }
+
+    }
+);
+
+
+/* =====================================================
+   START
+===================================================== */
+
+resizeCanvas();
+
+
+requestAnimationFrame(
+    animateGPS
+);
+
+</script>
+
+</body>
+</html>

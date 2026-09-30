@@ -1,0 +1,12 @@
+{
+    "name": "Hoornbeeck Navigatie",
+    "short_name": "Hoornbeeck",
+    "description": "Live GPS-route naar lokalen",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "background_color": "#050d18",
+    "theme_color": "#071321",
+    "orientation": "portrait-primary",
+    "lang": "nl-NL"
+}
