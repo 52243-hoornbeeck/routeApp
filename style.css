@@ -1,0 +1,22 @@
+body{
+    background:#07111f;
+    color:white;
+    font-family:Arial;
+    text-align:center;
+}
+
+#mapContainer{
+    position:relative;
+    display:inline-block;
+}
+
+#mapImage{
+    max-width:100%;
+}
+
+#routeCanvas{
+    position:absolute;
+    left:0;
+    top:0;
+    pointer-events:none;
+}
