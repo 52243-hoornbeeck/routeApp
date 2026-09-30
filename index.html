@@ -13,7 +13,6 @@
 <title>Hoornbeeck Gebouwenroute</title>
 
 <style>
-
 * {
     box-sizing: border-box;
 }
@@ -72,10 +71,6 @@ button {
     color: white;
     cursor: pointer;
     touch-action: manipulation;
-}
-
-button:active {
-    transform: scale(0.99);
 }
 
 #resetGpsButton {
@@ -169,12 +164,12 @@ button:active {
     line-height: 1.5;
 }
 
-.warning {
-    color: #fbbf24;
-}
-
 .good {
     color: #4ade80;
+}
+
+.warning {
+    color: #fbbf24;
 }
 
 .bad {
@@ -182,7 +177,6 @@ button:active {
 }
 
 @media (max-width: 600px) {
-
     header {
         font-size: 20px;
     }
@@ -200,9 +194,7 @@ button:active {
         min-height: 50px;
         font-size: 16px;
     }
-
 }
-
 </style>
 </head>
 
@@ -227,7 +219,7 @@ button:active {
         </button>
 
         <div class="small" id="gpsStatus">
-            Tik op "Live locatie starten" om toestemming te geven.
+            Tik op "Live locatie starten".
         </div>
 
     </div>
@@ -265,7 +257,7 @@ button:active {
             </div>
 
             <div class="infoBox">
-                <div class="label">Verplaatsing</div>
+                <div class="label">Beweging</div>
                 <div class="value" id="movement">-</div>
             </div>
 
@@ -325,7 +317,7 @@ button:active {
         </div>
 
         <div id="mapMessage">
-            Start je live locatie om je positie te zien.
+            Start je live locatie.
         </div>
 
         <div class="legend">
@@ -364,7 +356,7 @@ button:active {
         <h2>ℹ️ Status</h2>
 
         <div id="status">
-            Klaar. Tik op "Live locatie starten".
+            Klaar.
         </div>
 
     </div>
@@ -375,20 +367,11 @@ button:active {
 <script>
 
 /* =====================================================
-   KAART INSTELLINGEN
+   KAART
 ===================================================== */
 
 const MAP_WIDTH = 755;
 const MAP_HEIGHT = 553;
-
-
-/*
-   Zonder handmatige kalibratie moet er ergens
-   een startpunt op de kaart worden gekozen.
-
-   De eerste GPS-positie wordt daarom hier
-   geplaatst.
-*/
 
 const AUTO_MAP_START = {
     x: 400,
@@ -397,80 +380,60 @@ const AUTO_MAP_START = {
 
 
 /*
-   Geschatte schaal van de plattegrond.
+   Geschatte schaal.
 */
-
 const PIXELS_PER_METER = 12;
 
 
 /*
-   Geschatte draaiing van de kaart.
+   Eventuele draaiing van de kaart.
 */
-
 const MAP_ROTATION_DEG = 0;
 
 
 /* =====================================================
-   GPS INSTELLINGEN
+   GPS FILTER INSTELLINGEN
 ===================================================== */
 
-const GPS_OPTIONS = {
-
-    /*
-       Op telefoon proberen we hiermee
-       de nauwkeurigste locatiebron te gebruiken.
-    */
-
-    enableHighAccuracy: true,
-
-    /*
-       Geen oude locatie uit cache gebruiken.
-    */
-
-    maximumAge: 0,
-
-    /*
-       Maximaal 20 seconden wachten op een meting.
-    */
-
-    timeout: 20000
-
-};
+/*
+   Beweging kleiner dan ongeveer 1,5 meter
+   wordt als GPS-ruis gezien.
+*/
+const MIN_MOVEMENT_METERS = 1.5;
 
 
 /*
-   Extra verse GPS-meting.
-
-   De echte live functie is watchPosition().
-   Deze timer helpt wanneer sommige mobiele
-   browsers weinig callbacks geven.
+   Extreem slechte GPS-metingen worden
+   niet gebruikt voor beweging op de kaart.
 */
+const MAX_USABLE_ACCURACY = 40;
 
-const EXTRA_GPS_INTERVAL = 2500;
+
+/*
+   Hoe vloeiend de GPS beweegt.
+
+   Lager = stabieler
+   Hoger = sneller reageren
+*/
+const GPS_SMOOTHING = 0.22;
 
 
 /* =====================================================
-   GPS VARIABELEN
+   GPS
 ===================================================== */
 
 let watchId = null;
 
-let refreshTimer = null;
-
-let refreshRequestBusy = false;
-
 let gpsRunning = false;
-
 let gpsStarting = false;
 
+let rawGPSPosition = null;
 let gpsPosition = null;
-
-let previousGPSPosition = null;
+let previousAcceptedGPS = null;
 
 let gpsReference = null;
 
 let targetGPSMapPoint = null;
-
 let displayedGPSMapPoint = null;
 
 let routeActive = false;
@@ -543,55 +506,16 @@ const mapMessage =
 
 const rooms = {
 
-    "4.08": {
-        x:110,
-        y:230
-    },
-
-    "4.09": {
-        x:175,
-        y:245
-    },
-
-    "4.07": {
-        x:100,
-        y:350
-    },
-
-    "4.06": {
-        x:170,
-        y:325
-    },
-
-    "4.05": {
-        x:235,
-        y:325
-    },
-
-    "4.10": {
-        x:320,
-        y:210
-    },
-
-    "4.04": {
-        x:320,
-        y:325
-    },
-
-    "4.03": {
-        x:475,
-        y:315
-    },
-
-    "TR": {
-        x:605,
-        y:105
-    },
-
-    "4.01": {
-        x:680,
-        y:250
-    }
+    "4.08": {x:110,y:230},
+    "4.09": {x:175,y:245},
+    "4.07": {x:100,y:350},
+    "4.06": {x:170,y:325},
+    "4.05": {x:235,y:325},
+    "4.10": {x:320,y:210},
+    "4.04": {x:320,y:325},
+    "4.03": {x:475,y:315},
+    "TR": {x:605,y:105},
+    "4.01": {x:680,y:250}
 
 };
 
@@ -724,14 +648,11 @@ function resizeCanvas() {
     const rect =
         mapContainer.getBoundingClientRect();
 
-
     canvas.width =
         rect.width;
 
-
     canvas.height =
         rect.height;
-
 
     draw();
 
@@ -756,81 +677,51 @@ mapImage.addEventListener(
 
 gpsButton.addEventListener(
     "click",
-    async function() {
+    function() {
 
         if (gpsRunning || gpsStarting) {
 
             stopGPS();
 
-            return;
+        } else {
+
+            startGPS();
 
         }
-
-
-        /*
-           BELANGRIJK VOOR TELEFOON:
-
-           De toestemming wordt vanuit deze klik
-           aangevraagd.
-
-           Daardoor kan Safari/Chrome de echte
-           locatie-popup tonen.
-        */
-
-        await requestLocationPermissionAndStart();
 
     }
 );
 
 
 /* =====================================================
-   LOCATIE TOESTEMMING AANVRAGEN
+   GPS STARTEN
 ===================================================== */
 
-async function requestLocationPermissionAndStart() {
+function startGPS() {
 
     if (!navigator.geolocation) {
 
         gpsStatus.textContent =
-            "Deze browser ondersteunt geen locatie.";
-
-        gpsStatus.className =
-            "small bad";
+            "Deze browser ondersteunt geen GPS.";
 
         liveStatus.textContent =
             "Niet beschikbaar";
-
-        status.textContent =
-            "Je browser heeft geen Geolocation API.";
 
         return;
 
     }
 
 
-    /*
-       Mobiele browserlocatie vereist normaal
-       een secure context.
-
-       localhost telt als veilig,
-       maar een lokaal IP-adres via HTTP niet.
-    */
-
     if (!window.isSecureContext) {
 
         gpsStatus.textContent =
-            "Locatie is geblokkeerd omdat deze pagina niet via HTTPS draait.";
-
-        gpsStatus.className =
-            "small bad";
+            "Gebruik HTTPS op je telefoon.";
 
         liveStatus.textContent =
             "HTTPS nodig";
 
-        status.innerHTML =
-            "Op een telefoon moet deze website via <b>HTTPS</b> worden geopend. " +
-            "Als je op je telefoon bijvoorbeeld http://192.168.x.x gebruikt, " +
-            "is dat geen veilige verbinding.";
+        status.textContent =
+            "Locatie werkt op telefoon alleen in een veilige HTTPS-pagina.";
 
         return;
 
@@ -841,44 +732,28 @@ async function requestLocationPermissionAndStart() {
 
 
     gpsButton.textContent =
-        "📡 Locatietoegang aanvragen...";
+        "📡 Locatie aanvragen...";
 
 
     gpsStatus.textContent =
-        "Geef de browser toestemming om je locatie te gebruiken.";
-
-
-    gpsStatus.className =
-        "small warning";
+        "Geef toestemming voor je locatie.";
 
 
     liveStatus.textContent =
-        "Toestemming...";
-
-
-    status.textContent =
-        "Wacht op de locatie-popup van je telefoon...";
+        "Starten...";
 
 
     /*
-       getCurrentPosition() wordt bewust eerst
-       rechtstreeks aangeroepen.
-
-       Dit zorgt ervoor dat de browser op mobiel
-       de permissievraag toont.
+       Eerst expliciet een positie aanvragen.
+       Hierdoor verschijnt op de telefoon
+       de locatie-permissie.
     */
 
     navigator.geolocation.getCurrentPosition(
 
         function(position) {
 
-            /*
-               Toestemming gekregen +
-               eerste positie ontvangen.
-            */
-
             gpsStarting = false;
-
 
             gpsRunning = true;
 
@@ -888,14 +763,7 @@ async function requestLocationPermissionAndStart() {
             );
 
 
-            /*
-               Daarna echte live GPS starten.
-            */
-
             startLiveWatch();
-
-
-            startExtraGPSRefresh();
 
 
             gpsButton.textContent =
@@ -903,7 +771,7 @@ async function requestLocationPermissionAndStart() {
 
 
             gpsStatus.textContent =
-                "Live locatie is actief.";
+                "Live GPS actief.";
 
 
             gpsStatus.className =
@@ -915,18 +783,13 @@ async function requestLocationPermissionAndStart() {
 
         },
 
-        function(error) {
+        handleGPSError,
 
-            gpsStarting = false;
-
-
-            handlePermissionError(
-                error
-            );
-
-        },
-
-        GPS_OPTIONS
+        {
+            enableHighAccuracy:true,
+            maximumAge:0,
+            timeout:20000
+        }
 
     );
 
@@ -934,15 +797,10 @@ async function requestLocationPermissionAndStart() {
 
 
 /* =====================================================
-   LIVE WATCHPOSITION
+   ECHTE LIVE GPS
 ===================================================== */
 
 function startLiveWatch() {
-
-    if (!navigator.geolocation) {
-        return;
-    }
-
 
     if (watchId !== null) {
 
@@ -950,151 +808,23 @@ function startLiveWatch() {
             watchId
         );
 
-
-        watchId = null;
-
     }
 
 
     watchId =
         navigator.geolocation.watchPosition(
 
-            function(position) {
+            handleGPSPosition,
 
-                if (!gpsRunning) {
-                    return;
-                }
+            handleGPSError,
 
-
-                handleGPSPosition(
-                    position
-                );
-
-            },
-
-            function(error) {
-
-                if (!gpsRunning) {
-                    return;
-                }
-
-
-                handleWatchError(
-                    error
-                );
-
-            },
-
-            GPS_OPTIONS
-
-        );
-
-}
-
-
-/* =====================================================
-   EXTRA LIVE UPDATE
-===================================================== */
-
-function startExtraGPSRefresh() {
-
-    if (
-        refreshTimer !== null
-    ) {
-
-        clearInterval(
-            refreshTimer
-        );
-
-    }
-
-
-    refreshTimer =
-        setInterval(
-            function() {
-
-                requestFreshLocation();
-
-            },
-            EXTRA_GPS_INTERVAL
-        );
-
-}
-
-
-/* =====================================================
-   VERSE GPS POSITIE OPVRAGEN
-===================================================== */
-
-function requestFreshLocation() {
-
-    if (
-        !gpsRunning ||
-        !navigator.geolocation ||
-        refreshRequestBusy
-    ) {
-
-        return;
-
-    }
-
-
-    refreshRequestBusy =
-        true;
-
-
-    navigator.geolocation.getCurrentPosition(
-
-        function(position) {
-
-            refreshRequestBusy =
-                false;
-
-
-            if (!gpsRunning) {
-                return;
+            {
+                enableHighAccuracy:true,
+                maximumAge:0,
+                timeout:30000
             }
 
-
-            handleGPSPosition(
-                position
-            );
-
-        },
-
-        function(error) {
-
-            refreshRequestBusy =
-                false;
-
-
-            /*
-               Alleen een geweigerde permissie is hier
-               fataal.
-
-               Timeout of tijdelijk geen positie
-               laat watchPosition gewoon doorlopen.
-            */
-
-            if (
-                error.code === 1
-            ) {
-
-                handlePermissionError(
-                    error
-                );
-
-            }
-
-        },
-
-        {
-            enableHighAccuracy:true,
-            maximumAge:0,
-            timeout:15000
-        }
-
-    );
+        );
 
 }
 
@@ -1105,16 +835,9 @@ function requestFreshLocation() {
 
 function stopGPS() {
 
-    gpsRunning =
-        false;
+    gpsRunning = false;
 
-
-    gpsStarting =
-        false;
-
-
-    refreshRequestBusy =
-        false;
+    gpsStarting = false;
 
 
     if (watchId !== null) {
@@ -1123,22 +846,7 @@ function stopGPS() {
             watchId
         );
 
-
-        watchId =
-            null;
-
-    }
-
-
-    if (refreshTimer !== null) {
-
-        clearInterval(
-            refreshTimer
-        );
-
-
-        refreshTimer =
-            null;
+        watchId = null;
 
     }
 
@@ -1148,7 +856,7 @@ function stopGPS() {
 
 
     gpsStatus.textContent =
-        "Live locatie staat uit.";
+        "Live GPS staat uit.";
 
 
     gpsStatus.className =
@@ -1166,204 +874,7 @@ function stopGPS() {
 
 
 /* =====================================================
-   TOESTEMMINGSFOUT
-===================================================== */
-
-function handlePermissionError(error) {
-
-    gpsRunning =
-        false;
-
-
-    gpsStarting =
-        false;
-
-
-    if (watchId !== null) {
-
-        navigator.geolocation.clearWatch(
-            watchId
-        );
-
-
-        watchId =
-            null;
-
-    }
-
-
-    if (refreshTimer !== null) {
-
-        clearInterval(
-            refreshTimer
-        );
-
-
-        refreshTimer =
-            null;
-
-    }
-
-
-    gpsButton.textContent =
-        "📍 Opnieuw locatietoegang vragen";
-
-
-    if (
-        error.code === 1
-    ) {
-
-        gpsStatus.textContent =
-            "Je hebt locatietoegang geweigerd of geblokkeerd.";
-
-
-        gpsStatus.className =
-            "small bad";
-
-
-        liveStatus.textContent =
-            "Geblokkeerd";
-
-
-        status.innerHTML =
-            "Sta locatie toe voor deze website in de instellingen van je browser. " +
-            "Zet op je telefoon ook <b>precieze locatie</b> aan voor de browser.";
-
-        return;
-
-    }
-
-
-    if (
-        error.code === 2
-    ) {
-
-        gpsStatus.textContent =
-            "Je telefoon kan momenteel geen locatie bepalen.";
-
-
-        gpsStatus.className =
-            "small warning";
-
-
-        liveStatus.textContent =
-            "Geen GPS";
-
-
-        status.textContent =
-            "Controleer of Locatievoorzieningen/GPS op je telefoon aan staan.";
-
-        return;
-
-    }
-
-
-    if (
-        error.code === 3
-    ) {
-
-        gpsStatus.textContent =
-            "De eerste GPS-meting duurt te lang.";
-
-
-        gpsStatus.className =
-            "small warning";
-
-
-        liveStatus.textContent =
-            "Timeout";
-
-
-        status.textContent =
-            "Probeer opnieuw, bij voorkeur bij een raam of buiten voor de eerste GPS-fix.";
-
-        return;
-
-    }
-
-
-    gpsStatus.textContent =
-        "Onbekende locatiefout.";
-
-
-    gpsStatus.className =
-        "small bad";
-
-
-    status.textContent =
-        error.message ||
-        "Er is een fout opgetreden.";
-
-}
-
-
-/* =====================================================
-   WATCH FOUT
-===================================================== */
-
-function handleWatchError(error) {
-
-    console.log(
-        "Live GPS fout:",
-        error
-    );
-
-
-    if (
-        error.code === 1
-    ) {
-
-        handlePermissionError(
-            error
-        );
-
-        return;
-
-    }
-
-
-    if (
-        error.code === 2
-    ) {
-
-        gpsStatus.textContent =
-            "GPS-signaal tijdelijk niet beschikbaar. Live GPS blijft zoeken.";
-
-
-        gpsStatus.className =
-            "small warning";
-
-
-        liveStatus.textContent =
-            "Zoeken...";
-
-        return;
-
-    }
-
-
-    if (
-        error.code === 3
-    ) {
-
-        gpsStatus.textContent =
-            "Wachten op een nieuwe GPS-update...";
-
-
-        gpsStatus.className =
-            "small warning";
-
-
-        liveStatus.textContent =
-            "LIVE / wachten";
-
-    }
-
-}
-
-
-/* =====================================================
-   NIEUWE GPS POSITIE
+   GPS POSITIE
 ===================================================== */
 
 function handleGPSPosition(position) {
@@ -1372,9 +883,7 @@ function handleGPSPosition(position) {
         !position ||
         !position.coords
     ) {
-
         return;
-
     }
 
 
@@ -1389,15 +898,6 @@ function handleGPSPosition(position) {
         accuracy:
             position.coords.accuracy,
 
-        altitude:
-            position.coords.altitude,
-
-        heading:
-            position.coords.heading,
-
-        speed:
-            position.coords.speed,
-
         timestamp:
             position.timestamp ||
             Date.now()
@@ -1405,11 +905,15 @@ function handleGPSPosition(position) {
     };
 
 
+    rawGPSPosition =
+        newGPS;
+
+
     gpsUpdateCount++;
 
 
     /*
-       GPS WAARDEN TONEN
+       Altijd de echte waarden laten zien.
     */
 
     latitude.textContent =
@@ -1420,28 +924,11 @@ function handleGPSPosition(position) {
         newGPS.longitude.toFixed(7);
 
 
-    if (
-        Number.isFinite(
+    accuracy.textContent =
+        Math.round(
             newGPS.accuracy
-        )
-    ) {
-
-        accuracy.textContent =
-            Math.round(
-                newGPS.accuracy
-            ) +
-            " meter";
-
-    } else {
-
-        accuracy.textContent =
-            "-";
-
-    }
-
-
-    liveStatus.textContent =
-        "LIVE";
+        ) +
+        " meter";
 
 
     const updateTime =
@@ -1456,35 +943,12 @@ function handleGPSPosition(position) {
         );
 
 
-    /*
-       BEWEGING SINDS VORIGE POSITIE
-    */
-
-    if (
-        previousGPSPosition
-    ) {
-
-        const meters =
-            gpsDistanceMeters(
-                previousGPSPosition,
-                newGPS
-            );
-
-
-        movement.textContent =
-            meters.toFixed(2) +
-            " meter";
-
-    } else {
-
-        movement.textContent =
-            "Start";
-
-    }
+    liveStatus.textContent =
+        "LIVE";
 
 
     /*
-       EERSTE POSITIE
+       Eerste locatie.
     */
 
     if (!gpsReference) {
@@ -1506,12 +970,18 @@ function handleGPSPosition(position) {
         };
 
 
-        gpsPosition =
-            newGPS;
+        gpsPosition = {
+
+            ...newGPS
+
+        };
 
 
-        previousGPSPosition =
-            newGPS;
+        previousAcceptedGPS = {
+
+            ...newGPS
+
+        };
 
 
         targetGPSMapPoint = {
@@ -1536,12 +1006,8 @@ function handleGPSPosition(position) {
         };
 
 
-        gpsStatus.textContent =
-            "Live GPS actief — nieuwe locaties worden automatisch bijgewerkt.";
-
-
-        gpsStatus.className =
-            "small good";
+        movement.textContent =
+            "Start";
 
 
         mapMessage.textContent =
@@ -1549,10 +1015,7 @@ function handleGPSPosition(position) {
 
 
         status.textContent =
-            "Eerste GPS-locatie ontvangen.";
-
-
-        draw();
+            "GPS startpositie ontvangen.";
 
 
         return;
@@ -1561,31 +1024,228 @@ function handleGPSPosition(position) {
 
 
     /*
-       NIEUWE LIVE POSITIE
-
-       Geen snap/filter hier.
-
-       Iedere locatie-update wordt gebruikt.
+       Als de nauwkeurigheid extreem slecht is,
+       laten we de stip niet verspringen.
     */
 
-    gpsPosition =
-        newGPS;
+    if (
+        newGPS.accuracy >
+        MAX_USABLE_ACCURACY
+    ) {
 
+        movement.textContent =
+            "GPS onnauwkeurig";
+
+
+        gpsStatus.textContent =
+            "Live GPS actief — signaal is tijdelijk onnauwkeurig.";
+
+
+        gpsStatus.className =
+            "small warning";
+
+
+        status.textContent =
+            "Meting niet gebruikt vanwege lage nauwkeurigheid: " +
+            Math.round(
+                newGPS.accuracy
+            ) +
+            " meter.";
+
+
+        return;
+
+    }
+
+
+    /*
+       Afstand vanaf laatste geaccepteerde locatie.
+    */
+
+    const moved =
+        gpsDistanceMeters(
+            previousAcceptedGPS,
+            newGPS
+        );
+
+
+    movement.textContent =
+        moved.toFixed(2) +
+        " meter";
+
+
+    /*
+       Kleine bewegingen zijn meestal GPS-ruis.
+
+       Als je telefoon bijvoorbeeld 0,4 meter
+       of 0,8 meter heen en weer springt,
+       blijft de stip gewoon staan.
+    */
+
+    const accuracyDeadZone =
+        Math.min(
+            3,
+            Math.max(
+                MIN_MOVEMENT_METERS,
+                newGPS.accuracy * 0.12
+            )
+        );
+
+
+    if (
+        moved <
+        accuracyDeadZone
+    ) {
+
+        gpsStatus.textContent =
+            "Live GPS actief — positie stabiel.";
+
+
+        gpsStatus.className =
+            "small good";
+
+
+        status.textContent =
+            "Kleine GPS-afwijking weggefilterd.";
+
+
+        return;
+
+    }
+
+
+    /*
+       Onrealistische plotselinge sprongen
+       niet meteen gebruiken.
+
+       De maximale toegestane sprong wordt
+       groter als GPS zelf aangeeft dat de
+       nauwkeurigheid slechter is.
+    */
+
+    const maxJump =
+        Math.max(
+            12,
+            newGPS.accuracy * 1.5
+        );
+
+
+    if (
+        moved >
+        maxJump
+    ) {
+
+        gpsStatus.textContent =
+            "Live GPS actief — GPS-sprong weggefilterd.";
+
+
+        gpsStatus.className =
+            "small warning";
+
+
+        status.textContent =
+            "Onverwachte GPS-sprong van " +
+            Math.round(moved) +
+            " meter niet gebruikt.";
+
+
+        return;
+
+    }
+
+
+    /*
+       POSITIE SMOOTHEN
+
+       In plaats van meteen naar de nieuwe
+       latitude/longitude te springen,
+       bewegen we geleidelijk richting
+       de nieuwe positie.
+    */
+
+    let alpha =
+        GPS_SMOOTHING;
+
+
+    /*
+       Betere nauwkeurigheid =
+       iets sneller reageren.
+    */
+
+    if (
+        newGPS.accuracy <= 8
+    ) {
+
+        alpha =
+            0.42;
+
+    }
+
+    else if (
+        newGPS.accuracy <= 15
+    ) {
+
+        alpha =
+            0.30;
+
+    }
+
+    else {
+
+        alpha =
+            0.18;
+
+    }
+
+
+    gpsPosition = {
+
+        latitude:
+            gpsPosition.latitude +
+            (
+                newGPS.latitude -
+                gpsPosition.latitude
+            ) *
+            alpha,
+
+        longitude:
+            gpsPosition.longitude +
+            (
+                newGPS.longitude -
+                gpsPosition.longitude
+            ) *
+            alpha,
+
+        accuracy:
+            newGPS.accuracy,
+
+        timestamp:
+            newGPS.timestamp
+
+    };
+
+
+    previousAcceptedGPS = {
+
+        ...newGPS
+
+    };
+
+
+    /*
+       Gesmoothde positie naar kaart.
+    */
 
     const mapPoint =
         gpsToMap(
-            newGPS
+            gpsPosition
         );
 
 
     if (
         mapPoint &&
-        Number.isFinite(
-            mapPoint.x
-        ) &&
-        Number.isFinite(
-            mapPoint.y
-        )
+        Number.isFinite(mapPoint.x) &&
+        Number.isFinite(mapPoint.y)
     ) {
 
         targetGPSMapPoint = {
@@ -1598,32 +1258,11 @@ function handleGPSPosition(position) {
 
         };
 
-
-        if (
-            !displayedGPSMapPoint
-        ) {
-
-            displayedGPSMapPoint = {
-
-                x:
-                    mapPoint.x,
-
-                y:
-                    mapPoint.y
-
-            };
-
-        }
-
     }
 
 
-    previousGPSPosition =
-        newGPS;
-
-
     gpsStatus.textContent =
-        "Live GPS actief — positie wordt bijgewerkt.";
+        "Live GPS actief — positie wordt gestabiliseerd.";
 
 
     gpsStatus.className =
@@ -1633,13 +1272,95 @@ function handleGPSPosition(position) {
     status.textContent =
         "GPS update #" +
         gpsUpdateCount +
-        " om " +
-        updateTime.toLocaleTimeString(
-            "nl-NL"
-        );
+        " verwerkt.";
 
 
     draw();
+
+}
+
+
+/* =====================================================
+   GPS FOUT
+===================================================== */
+
+function handleGPSError(error) {
+
+    console.log(
+        "GPS fout:",
+        error
+    );
+
+
+    if (
+        error.code === 1
+    ) {
+
+        stopGPS();
+
+
+        gpsStatus.textContent =
+            "Locatietoegang geweigerd.";
+
+
+        gpsStatus.className =
+            "small bad";
+
+
+        liveStatus.textContent =
+            "Geblokkeerd";
+
+
+        status.textContent =
+            "Sta locatie en precieze locatie toe voor deze website.";
+
+
+        return;
+
+    }
+
+
+    if (
+        error.code === 2
+    ) {
+
+        gpsStatus.textContent =
+            "GPS zoekt naar een beter signaal.";
+
+
+        gpsStatus.className =
+            "small warning";
+
+
+        liveStatus.textContent =
+            "LIVE / zoeken";
+
+
+        return;
+
+    }
+
+
+    if (
+        error.code === 3
+    ) {
+
+        /*
+           Timeout stopt watchPosition niet.
+        */
+
+        gpsStatus.textContent =
+            "Live GPS actief — wachten op nieuwe positie.";
+
+
+        gpsStatus.className =
+            "small warning";
+
+
+        liveStatus.textContent =
+            "LIVE";
+
+    }
 
 }
 
@@ -1650,12 +1371,8 @@ function handleGPSPosition(position) {
 
 function gpsToMap(position) {
 
-    if (
-        !gpsReference
-    ) {
-
+    if (!gpsReference) {
         return null;
-
     }
 
 
@@ -1680,7 +1397,7 @@ function gpsToMap(position) {
         );
 
 
-    const rotation =
+    const angle =
         MAP_ROTATION_DEG *
         Math.PI /
         180;
@@ -1688,16 +1405,16 @@ function gpsToMap(position) {
 
     const rotatedX =
         eastMeters *
-        Math.cos(rotation) -
+        Math.cos(angle) -
         northMeters *
-        Math.sin(rotation);
+        Math.sin(angle);
 
 
     const rotatedY =
         eastMeters *
-        Math.sin(rotation) +
+        Math.sin(angle) +
         northMeters *
-        Math.cos(rotation);
+        Math.cos(angle);
 
 
     return {
@@ -1721,7 +1438,12 @@ function gpsToMap(position) {
    GPS AFSTAND
 ===================================================== */
 
-function gpsDistanceMeters(a, b) {
+function gpsDistanceMeters(a,b) {
+
+    if (!a || !b) {
+        return 0;
+    }
+
 
     const R =
         6371000;
@@ -1775,7 +1497,7 @@ function gpsDistanceMeters(a, b) {
         R *
         Math.atan2(
             Math.sqrt(h),
-            Math.sqrt(1 - h)
+            Math.sqrt(1-h)
         )
     );
 
@@ -1783,7 +1505,7 @@ function gpsDistanceMeters(a, b) {
 
 
 /* =====================================================
-   STARTPOSITIE RESETTEN
+   GPS RESET
 ===================================================== */
 
 resetGpsButton.addEventListener(
@@ -1793,26 +1515,23 @@ resetGpsButton.addEventListener(
         gpsReference =
             null;
 
-
         gpsPosition =
             null;
 
-
-        previousGPSPosition =
+        rawGPSPosition =
             null;
 
+        previousAcceptedGPS =
+            null;
 
         targetGPSMapPoint =
             null;
 
-
         displayedGPSMapPoint =
             null;
 
-
         routeActive =
             false;
-
 
         gpsUpdateCount =
             0;
@@ -1827,16 +1546,7 @@ resetGpsButton.addEventListener(
 
 
         status.textContent =
-            "De volgende live GPS-meting wordt het nieuwe startpunt.";
-
-
-        if (
-            gpsRunning
-        ) {
-
-            requestFreshLocation();
-
-        }
+            "De volgende GPS-update wordt het nieuwe startpunt.";
 
 
         draw();
@@ -1899,14 +1609,14 @@ routeButton.addEventListener(
 
 
 /* =====================================================
-   PIXEL AFSTAND
+   AFSTAND
 ===================================================== */
 
-function distance(a, b) {
+function distance(a,b) {
 
     return Math.hypot(
-        a.x - b.x,
-        a.y - b.y
+        a.x-b.x,
+        a.y-b.y
     );
 
 }
@@ -1920,7 +1630,6 @@ function nearestNode(point) {
 
     let best =
         null;
-
 
     let bestDistance =
         Infinity;
@@ -1945,7 +1654,6 @@ function nearestNode(point) {
             bestDistance =
                 d;
 
-
             best =
                 key;
 
@@ -1960,7 +1668,7 @@ function nearestNode(point) {
 
 
 /* =====================================================
-   PUNT PROJECTEREN OP LIJN
+   PUNT OP LIJN
 ===================================================== */
 
 function projectPointToSegment(
@@ -1970,28 +1678,21 @@ function projectPointToSegment(
 ) {
 
     const abX =
-        b.x -
-        a.x;
-
+        b.x-a.x;
 
     const abY =
-        b.y -
-        a.y;
-
+        b.y-a.y;
 
     const apX =
-        point.x -
-        a.x;
-
+        point.x-a.x;
 
     const apY =
-        point.y -
-        a.y;
+        point.y-a.y;
 
 
     const lengthSquared =
-        abX * abX +
-        abY * abY;
+        abX*abX +
+        abY*abY;
 
 
     if (
@@ -2008,8 +1709,8 @@ function projectPointToSegment(
 
     let t =
         (
-            apX * abX +
-            apY * abY
+            apX*abX +
+            apY*abY
         ) /
         lengthSquared;
 
@@ -2028,11 +1729,11 @@ function projectPointToSegment(
 
         x:
             a.x +
-            abX * t,
+            abX*t,
 
         y:
             a.y +
-            abY * t
+            abY*t
 
     };
 
@@ -2043,13 +1744,10 @@ function projectPointToSegment(
    DICHTSTBIJZIJNDE GANG
 ===================================================== */
 
-function projectToNearestHallway(
-    point
-) {
+function projectToNearestHallway(point) {
 
     let bestPoint =
         point;
-
 
     let bestDistance =
         Infinity;
@@ -2064,7 +1762,6 @@ function projectToNearestHallway(
             nodes[
                 connection[0]
             ];
-
 
         const b =
             nodes[
@@ -2095,7 +1792,6 @@ function projectToNearestHallway(
             bestDistance =
                 d;
 
-
             bestPoint =
                 projected;
 
@@ -2119,9 +1815,7 @@ function dijkstra(
 ) {
 
     const dist = {};
-
     const previous = {};
-
     const visited = {};
 
 
@@ -2132,10 +1826,8 @@ function dijkstra(
         dist[key] =
             Infinity;
 
-
         previous[key] =
             null;
-
 
         visited[key] =
             false;
@@ -2152,7 +1844,6 @@ function dijkstra(
         let current =
             null;
 
-
         let best =
             Infinity;
 
@@ -2163,13 +1854,11 @@ function dijkstra(
 
             if (
                 !visited[key] &&
-                dist[key] <
-                best
+                dist[key] < best
             ) {
 
                 best =
                     dist[key];
-
 
                 current =
                     key;
@@ -2183,9 +1872,7 @@ function dijkstra(
             current === null ||
             current === end
         ) {
-
             break;
-
         }
 
 
@@ -2203,8 +1890,7 @@ function dijkstra(
 
 
             if (
-                connection[0] ===
-                current
+                connection[0] === current
             ) {
 
                 neighbour =
@@ -2213,8 +1899,7 @@ function dijkstra(
             }
 
             else if (
-                connection[1] ===
-                current
+                connection[1] === current
             ) {
 
                 neighbour =
@@ -2248,7 +1933,6 @@ function dijkstra(
                 dist[neighbour] =
                     newDistance;
 
-
                 previous[neighbour] =
                     current;
 
@@ -2259,9 +1943,7 @@ function dijkstra(
     }
 
 
-    const path =
-        [];
-
+    const path = [];
 
     let current =
         end;
@@ -2272,7 +1954,6 @@ function dijkstra(
         path.unshift(
             current
         );
-
 
         current =
             previous[current];
@@ -2295,9 +1976,7 @@ function drawRoute() {
         !routeActive ||
         !displayedGPSMapPoint
     ) {
-
         return;
-
     }
 
 
@@ -2338,12 +2017,8 @@ function drawRoute() {
         );
 
 
-    if (
-        !path.length
-    ) {
-
+    if (!path.length) {
         return;
-
     }
 
 
@@ -2390,18 +2065,14 @@ function drawRoute() {
     ctx.lineWidth =
         6;
 
-
     ctx.strokeStyle =
         "#22c55e";
-
 
     ctx.lineCap =
         "round";
 
-
     ctx.lineJoin =
         "round";
-
 
     ctx.stroke();
 
@@ -2414,7 +2085,7 @@ function drawRoute() {
         access.door.y,
         9,
         0,
-        Math.PI * 2
+        Math.PI*2
     );
 
 
@@ -2428,7 +2099,7 @@ function drawRoute() {
 
 
 /* =====================================================
-   LIVE GPS STIP
+   GPS STIP
 ===================================================== */
 
 function drawGPSMarker() {
@@ -2436,9 +2107,7 @@ function drawGPSMarker() {
     if (
         !displayedGPSMapPoint
     ) {
-
         return;
-
     }
 
 
@@ -2462,79 +2131,58 @@ function drawGPSMarker() {
         );
 
 
-    /*
-       Transparante pulsring
-    */
-
     const pulse =
-        20 +
+        19 +
         Math.sin(
-            Date.now() / 250
+            Date.now()/300
         ) *
-        3;
+        2;
 
 
     ctx.beginPath();
-
 
     ctx.arc(
         x,
         y,
         pulse,
         0,
-        Math.PI * 2
+        Math.PI*2
     );
-
 
     ctx.fillStyle =
         "rgba(239,68,68,0.16)";
 
-
     ctx.fill();
 
 
-    /*
-       Witte rand
-    */
-
     ctx.beginPath();
-
 
     ctx.arc(
         x,
         y,
-        13,
+        12,
         0,
-        Math.PI * 2
+        Math.PI*2
     );
-
 
     ctx.fillStyle =
         "#ffffff";
 
-
     ctx.fill();
 
 
-    /*
-       Rode GPS punt
-    */
-
     ctx.beginPath();
-
 
     ctx.arc(
         x,
         y,
-        9,
+        8,
         0,
-        Math.PI * 2
+        Math.PI*2
     );
-
 
     ctx.fillStyle =
         "#ef4444";
-
 
     ctx.fill();
 
@@ -2542,7 +2190,7 @@ function drawGPSMarker() {
 
 
 /* =====================================================
-   TEKENEN
+   DRAW
 ===================================================== */
 
 function draw() {
@@ -2551,9 +2199,7 @@ function draw() {
         !canvas.width ||
         !canvas.height
     ) {
-
         return;
-
     }
 
 
@@ -2586,7 +2232,6 @@ function draw() {
 
     drawRoute();
 
-
     drawGPSMarker();
 
 
@@ -2596,7 +2241,7 @@ function draw() {
 
 
 /* =====================================================
-   VLOEIEND GPS BEWEGEN
+   VLOEIENDE ANIMATIE
 ===================================================== */
 
 function animateGPS() {
@@ -2606,12 +2251,17 @@ function animateGPS() {
         displayedGPSMapPoint
     ) {
 
+        /*
+           Ook visueel niet direct springen,
+           maar soepel naar de nieuwe positie.
+        */
+
         displayedGPSMapPoint.x +=
             (
                 targetGPSMapPoint.x -
                 displayedGPSMapPoint.x
             ) *
-            0.25;
+            0.12;
 
 
         displayedGPSMapPoint.y +=
@@ -2619,7 +2269,7 @@ function animateGPS() {
                 targetGPSMapPoint.y -
                 displayedGPSMapPoint.y
             ) *
-            0.25;
+            0.12;
 
     }
 
@@ -2635,7 +2285,7 @@ function animateGPS() {
 
 
 /* =====================================================
-   TERUG NAAR APP / BROWSER
+   PAGINA OPNIEUW ACTIEF
 ===================================================== */
 
 document.addEventListener(
@@ -2648,21 +2298,6 @@ document.addEventListener(
             gpsRunning
         ) {
 
-            /*
-               Meteen opnieuw een verse locatie
-               vragen wanneer de gebruiker
-               terugkomt naar de browser.
-            */
-
-            requestFreshLocation();
-
-
-            /*
-               De watch opnieuw starten,
-               omdat mobiele browsers hem soms
-               pauzeren in de achtergrond.
-            */
-
             startLiveWatch();
 
         }
@@ -2671,83 +2306,11 @@ document.addEventListener(
 );
 
 
-window.addEventListener(
-    "focus",
-    function() {
-
-        if (
-            gpsRunning
-        ) {
-
-            requestFreshLocation();
-
-        }
-
-    }
-);
-
-
-/* =====================================================
-   CONTROLEREN OF WEBSITE VEILIG IS
-===================================================== */
-
-function checkEnvironment() {
-
-    if (
-        !navigator.geolocation
-    ) {
-
-        gpsStatus.textContent =
-            "Deze browser ondersteunt geen GPS-locatie.";
-
-
-        gpsStatus.className =
-            "small bad";
-
-
-        return;
-
-    }
-
-
-    if (
-        !window.isSecureContext
-    ) {
-
-        gpsStatus.textContent =
-            "⚠️ Op telefoon werkt GPS alleen via HTTPS. Deze pagina is niet veilig geopend.";
-
-
-        gpsStatus.className =
-            "small bad";
-
-
-        status.innerHTML =
-            "Gebruik <b>HTTPS</b> wanneer je de site op je telefoon opent. " +
-            "Een adres zoals <b>http://192.168.x.x</b> is niet hetzelfde als localhost.";
-
-        return;
-
-    }
-
-
-    gpsStatus.textContent =
-        "Tik op 'Live locatie starten' om locatie-toestemming te geven.";
-
-
-    gpsStatus.className =
-        "small good";
-
-}
-
-
 /* =====================================================
    START
 ===================================================== */
 
 resizeCanvas();
-
-checkEnvironment();
 
 requestAnimationFrame(
     animateGPS
